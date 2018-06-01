@@ -1,0 +1,4 @@
+[
+  "test_stock_indicators.py::test_stocks_indicators",
+  "test_stock_indicators.py::test_stocks_indicators_warnings"
+]

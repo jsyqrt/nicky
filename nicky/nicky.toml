@@ -1,0 +1,31 @@
+# -*- mode: conf; -*-
+
+# for sample configuration, cf. https://github.com/toml-lang/toml
+
+[core]
+rc_dir = "~/.nicky"
+
+# local database
+[db]
+db_dir = 'data/'
+sohu_db = 'stocks/sohu/sohu.db'
+crycompare = 'cryptocurrencies/crycompare/crycompare.db'
+
+# logging
+[logging]
+version = 1
+disable_existing_loggers = false
+
+[logging.formatters.simple]
+format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+
+[logging.handlers.default]
+level = "DEBUG"
+class = "logging.StreamHandler"
+formatter = "simple"
+
+[logging.loggers.nicky]
+handlers = ["default"]
+level = "DEBUG"
+propagate = false
+

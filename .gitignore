@@ -1,12 +1,28 @@
 
+# all tests
+test_*
+
+# vscode config folder
+*.vscode
+
 # python complie files
 *.pyc
 
 # sqlite database files
 *.db
 
-# all nohup out files
+# all nohup out file
 *.out
+
+# all csv file
+*.csv
 
 # all logs
 *.log
+
+# crycompare
+*.dict
+*.basics
+
+# other folders.
+
