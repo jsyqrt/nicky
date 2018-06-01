@@ -1,0 +1,12 @@
+
+# python complie files
+*.pyc
+
+# sqlite database files
+*.db
+
+# all nohup out files
+*.out
+
+# all logs
+*.log
