@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 import sys
 import threading
@@ -8,24 +7,25 @@ import warnings
 warnings.filterwarnings('ignore')
 import queue
 
+import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
-#import tushare as ts
 
 from nicky.data.stocks.sohu import sohu
+from nicky.ui.widgets import MainPlot, ReturnPlot, HeatmapPlot, AboutDialog, IndicatorPlot
 
-from nicky.ui.widgets import *
 
-__all__ = ['MainWindow']
+__all__ = ['StockWidget', ]
 
-class MainWindow(QtGui.QMainWindow):
 
-    def __init__(self, parent=None):
-        QtGui.QMainWindow.__init__(self, parent)
+class StockWidget(QtGui.QWidget):
 
+    def __init__(self):
+        super(StockWidget, self).__init__()
         self.initData()
         self.initUI()
+        self.stock_indexes_get()
 
     def initData(self):
         self.code = ''
@@ -57,133 +57,70 @@ class MainWindow(QtGui.QMainWindow):
 
         self.area_list = list(self.get_data(type='areas').keys())
 
-        self.about_author_text = \
-        '''
-        <h1>Hi, I am Jason Carter(jsyqrt@gmail.com).</h1>
 
-        '''
+    def initUI(self):
+        self.setMouseTracking(True)
 
-        self.about_stock_code_text = \
-        '''
-        股票代码格式和规则：
+        self.initLayout()
+        self.initToolBars()
+        self.initPlotLayout()
+        self.initPlots()
 
-        上交编码
-        在上海证券交易所上市的证券，根据上交所“证券编码实施方案”，采用6位数编制方法，前3位数为区别证券品种，具体见下表所列：
-        001×××国债现货；110×××120×××企业债券；129×××100×××可转换债券；201×××国债回购；310×××国债期货；500×××550×××基金；600×××A股；700×××配股；710×××转配股；701×××转配股再配股；711×××转配股再转配股；720×××红利；730×××新股申购；735×××新基金申购；737×××新股配售；900×××B股。
+    def initLayout(self):
+        self.layout = QtGui.QGridLayout()
+        self.setLayout(self.layout)
 
-        沪市A股票买卖的代码是以600、601或603打头，如：运盛实业：股票代码是600767。
-        沪市B股买卖的代码是以900打头，如：仪电B股：代码是900901。
+    def initToolBars(self):
+        self.initKlineBar()
+        self.initTimeSelectionBar()
+        self.initAnalysisBar()
+        self.initForecastBar()
 
-        沪市新股申购的代码是以730打头。如：中信证券：申购的代码是730030。
-        深市新股申购的代码与深市股票买卖代码一样，如：中信证券在深市市值配售代码是003030。
+    def initPlotLayout(self):
+        self.plot_layout = QtGui.QStackedLayout()
+        self.layout.addLayout(self.plot_layout, self.layout.count(), 0)
 
-        配股代码，沪市以700打头，深市以080打头。如：运盛实业配股代码是700767。深市草原兴发配股代码是080780。
+    def initPlots(self):
 
-        深交编码
-        以前深交所的证券代码是四位，前不久已经升为六位具体变化如下：深圳证券市场的证券代码由原来的4位长度统一升为6位长度。
-        1、新证券代码编码规则升位后的证券代码采用6位数字编码，编码规则定义如下：顺序编码区：6位代码中的第3位到第6位，取值范围为0001-9999。证券种类标识区：6位代码中的最左两位，其中第1位标识证券大类，第2位标识该大类下的衍生证券。
-        第1位	第二位	第3-6位	含义
-        0	0	XXXX	A股证券
-        0	3	XXXX	A股A2权证
-        0	7	XXXX	A股增发
-        0	8	XXXX	A股A1权证
-        0	9	XXXX	A股转配
-        1	0	XXXX	国债现货
-        1	1	XXXX	债券
-        1	2	XXXX	可转换债券
-        1	3	XXXX	国债回购
-        1	7	XXXX	原有投资基金
-        1	8	XXXX	证券投资基金
-        2	0	XXXX	B股证券
-        2	7	XXXX	B股增发
-        2	8	XXXX	B股权证
-        3	0	XXXX	创业板证券
-        3	7	XXXX	创业板增发
-        3	8	XXXX	创业板权证
-        3	9	XXXX	综合指数/成份指数
-        2、新旧证券代码转换
-        此次A股证券代码升位方法为原代码前加“00”，但有两个A股股票升位方法特殊，分别是“0696 ST联益”和“0896 豫能控股”，升位后股票代码分别为“001696”和“001896”。
+        self.candlestick_plot = MainPlot()
+        self.return_plot = ReturnPlot()
+        self.heatmap_plot = HeatmapPlot()
 
-        股票代码中的临时代码和特殊符号
+        self.plot_layout.addWidget(self.candlestick_plot)
+        self.plot_layout.addWidget(self.return_plot)
+        self.plot_layout.addWidget(self.heatmap_plot)
+        self.indicator_plots = {}
 
-        临时代码
-        新股：新股发行申购代码为730***，新股申购款代码为740***，新股配号代码为741***；新股配售代码为737***，新股配售的配号（又称“新股值号”）为747***；可转换债券发行申购代码为733***；
-        深市A股票买卖的代码是以000打头，如：顺鑫农业：股票代码是000860。B股买卖的代码是以200打头，如：深中冠B股，代码是200018。
-        中小板股票代码以002打头，如：东华合创股票代码是002065。
-        创业板股票代码以300打头，如：探路者股票代码是：300005
+    def loadData(self, data, title, data_type='ohlcv'):
+        if data_type == 'ohlcv':
+            self.candlestick_plot.loadData(data, title)
+            self.plot_layout.setCurrentIndex(0)
+        elif data_type == 'return':
+            self.return_plot.loadData(data, title)
+            self.plot_layout.setCurrentIndex(1)
+        elif data_type == 'cluster':
+            self.heatmap_plot.loadData(data, title)
+            self.plot_layout.setCurrentIndex(2)
+        elif data_type.startswith('indicator'):
+            indicator_type = data_type.split(':')[1]
+            if indicator_type not in self.indicator_plots:
+                current_index = self.plot_layout.count()
+                indicator_plot = IndicatorPlot(indicator_type)
+                indicator_plot.loadData(data, title)
+                self.plot_layout.addWidget(indicator_plot)
+                self.plot_layout.setCurrentIndex(current_index)
+                self.indicator_plots[indicator_type] = current_index
+            else:
+                self.plot_layout.setCurrentIndex(self.indicator_plots[indicator_type])
+                self.plot_layout.currentWidget().loadData(data, title)
 
-        代码分类
-        创业板
-        创业板的代码是300打头的股票代码
-        沪市A股
-        沪市A股的代码是以600、601或603打头
-        沪市B股
-        沪市B股的代码是以900打头
-        深市A股
-        深市A股的代码是以000打头
-        中小板
-        中小板的代码是002打头
-        深圳B股
-        深圳B股的代码是以200打头
-        新股申购
-        沪市新股申购的代码是以730打头
-        深市新股申购的代码与深市股票买卖代码一样
-        配股代码
-        沪市以700打头，深市以080打头 权证，沪市是580打头 深市是031打头
+        else:
+            pass
 
-        '''
+    def initKlineBar(self):
+        self.klinebar = QtGui.QToolBar("stock select bar.")
+        self.layout.addWidget(self.klinebar)
 
-    def initMenubar(self):
-        menubar = self.menuBar()
-
-        view = menubar.addMenu('View')
-        about = menubar.addMenu("About")
-
-        candlestickbarAction = QtGui.QAction("Toggle Candlestick Bar", self)
-        candlestickbarAction.triggered.connect(self.toggleCandlestickbar)
-
-        analysisbarAction = QtGui.QAction("Toggle Analysis Bar", self)
-        analysisbarAction.triggered.connect(self.toggleAnalysisbar)
-
-        forecastbarAction = QtGui.QAction("Toggle Forecast Bar", self)
-        forecastbarAction.triggered.connect(self.toggleForecastbar)
-
-        datetimeAction = QtGui.QAction("Toggle Datetime Bar", self)
-        datetimeAction.triggered.connect(self.toggleDatetimeBar)
-
-        heatmapAction = QtGui.QAction("Toggle Distance Bar", self)
-        heatmapAction.triggered.connect(self.toggleDistanceHeatmapBar)
-
-        view.addAction(candlestickbarAction)
-        view.addAction(analysisbarAction)
-        view.addAction(forecastbarAction)
-        view.addAction(datetimeAction)
-        view.addAction(heatmapAction)
-
-        aboutAuthorAction = QtGui.QAction("About Author", self)
-        aboutAuthorAction.triggered.connect(AboutDialog(self, "About Author", self.about_author_text).show)
-
-        aboutStockCodeAction = QtGui.QAction("About Stock Code", self)
-        aboutStockCodeAction.triggered.connect(AboutDialog(self, "About Stock Code", self.about_stock_code_text).show)
-
-        about.addAction(aboutStockCodeAction)
-        about.addAction(aboutAuthorAction)
-
-    def toggleCandlestickbar(self):
-        state = self.klinebar.isVisible()
-        self.klinebar.setVisible(not state)
-
-    def toggleAnalysisbar(self):
-        state = self.analysisbar.isVisible()
-        self.analysisbar.setVisible(not state)
-
-    def toggleForecastbar(self):
-        state = self.forecastbar.isVisible()
-        self.forecastbar.setVisible(not state)
-
-    def initCandlestickBar(self):
-
-        self.klinebar = self.addToolBar("search stock with its name or code")
         self.klinebar.setAutoFillBackground(True)
 
         stock_indexes_label = QtGui.QLabel("指数:")
@@ -283,7 +220,6 @@ class MainWindow(QtGui.QMainWindow):
 
         self.klinebar.addSeparator()
 
-
     def refreshCandlestickBar(self):
 
         closest_list = sohu.get_closest_list(self.code)
@@ -297,7 +233,6 @@ class MainWindow(QtGui.QMainWindow):
         if hasattr(self, 'closest_result'):
             self.klinebar.removeAction(self.closest_result)
             del self.closest_result
-
 
         self.closest_label = self.klinebar.addWidget(QtGui.QLabel("十支最相似股票："))
 
@@ -317,11 +252,10 @@ class MainWindow(QtGui.QMainWindow):
         else:
             self.closest_result = self.klinebar.addWidget(QtGui.QLabel("无数据"))
 
-
-        self.addToolBarBreak()
-
     def initTimeSelectionBar(self):
-        self.timeselectionbar = self.addToolBar("select display time range.")
+        self.timeselectionbar = QtGui.QToolBar("select time range.")
+        self.layout.addWidget(self.timeselectionbar)
+
         self.timeselectionbar.setAutoFillBackground(True)
 
         changeDateRange = QtGui.QAction( # QtGui.QIcon("icons/bold.png"),
@@ -371,9 +305,8 @@ class MainWindow(QtGui.QMainWindow):
         self.timeselectionbar.addAction(changeDateStart20Y)
         self.timeselectionbar.addAction(changeDateStartALL)
 
-        self.addToolBarBreak()
-
-        self.datetimebar = self.addToolBar("set stock date time")
+        self.datetimebar = QtGui.QToolBar("set stock date time")
+        self.layout.addWidget(self.datetimebar)
         #self.datetimebar.setOrientation(QtCore.Qt.Vertical)
 
         self.datetimebar.hide()
@@ -394,13 +327,11 @@ class MainWindow(QtGui.QMainWindow):
         self.datetimebar.addWidget(start_date)
         self.datetimebar.addWidget(end_date)
 
-        self.addToolBarBreak()
-
     def update_db(self):
         self.update_db_progress_bar = QtGui.QProgressBar(self)
-        self.statusbar.addWidget(self.update_db_progress_bar)
+        self.layout.addWidget(self.update_db_progress_bar)
         nothing = QtGui.QProgressBar(self)
-        self.statusbar.addWidget(nothing)
+        self.layout.addWidget(nothing)
         nothing.hide()
 
         def update_progress_bar(progress_queue):
@@ -408,7 +339,7 @@ class MainWindow(QtGui.QMainWindow):
             while value + 0.1 < 100:
                 self.update_db_progress_bar.setValue(value)
                 value = progress_queue.get()
-            self.statusbar.removeWidget(self.update_db_progress_bar)
+            self.layout.removeWidget(self.update_db_progress_bar)
 
         progress_queue = queue.Queue()
         update_db_thread = threading.Thread(target=sohu.update_db, args=(progress_queue, ))
@@ -418,7 +349,9 @@ class MainWindow(QtGui.QMainWindow):
         update_progress_bar_thread.start()
 
     def initAnalysisBar(self):
-        self.analysisbar = self.addToolBar("analyze the OHLCV(open, high, low, close, volume) data")
+        self.analysisbar = QtGui.QToolBar("indicators of stock.")
+        self.layout.addWidget(self.analysisbar)
+
         self.analysisbar.setAutoFillBackground(True)
 
         #self.analysisbar.hide()
@@ -525,9 +458,8 @@ class MainWindow(QtGui.QMainWindow):
         self.analysisbar.addAction(show_correlation_heatmaps_action)
         self.analysisbar.addSeparator()
 
-        self.addToolBarBreak()
-
-        self.correlation_heatmap_bar = self.addToolBar('draw correlation (correlation) heatmap between stocks')
+        self.correlation_heatmap_bar = QtGui.QToolBar('draw correlation (correlation) heatmap between stocks')
+        self.layout.addWidget(self.correlation_heatmap_bar)
         self.correlation_heatmap_bar.setAutoFillBackground(True)
         self.correlation_heatmap_bar.hide()
 
@@ -551,10 +483,10 @@ class MainWindow(QtGui.QMainWindow):
 
         self.correlation_heatmap_bar.addAction(show_log_return_correlation_action)
 
-        self.addToolBarBreak()
-
     def initForecastBar(self):
-        self.forecastbar = self.addToolBar('forecast stock price and return with multiple models')
+        self.forecastbar = QtGui.QToolBar("forecast with models.")
+        self.layout.addWidget(self.forecastbar)
+
         self.forecastbar.setAutoFillBackground(True)
 
         self.forecastbar.hide()
@@ -573,8 +505,6 @@ class MainWindow(QtGui.QMainWindow):
         self.forecastbar.addAction(dar_action)
 
         self.forecastbar.addSeparator()
-
-        self.addToolBarBreak()
 
     def closest_data_load(self, code, title):
         data = self.get_data(code)
@@ -719,35 +649,7 @@ class MainWindow(QtGui.QMainWindow):
 
     def load_data(self, data, kline_title, data_type='ohlcv'):
         #self.main_data = data
-        self.main_widget.loadData(data, kline_title, data_type)
+        self.loadData(data, kline_title, data_type)
         if data_type == 'ohlcv' and hasattr(self, 'klinebar'):
             self.refreshCandlestickBar()
 
-    def initUI(self):
-
-        self.main_widget = MainWidget()
-        self.statusbar = self.statusBar()
-
-        self.stock_indexes_get()
-
-        self.setCentralWidget(self.main_widget)
-
-        self.initMenubar()
-        self.initCandlestickBar()
-        self.initTimeSelectionBar()
-        self.initAnalysisBar()
-        # TODO: fix **kws bugs
-        # DONE
-        self.initForecastBar()
-
-        self.setGeometry(100, 100, 1600, 900)
-
-        self.setWindowTitle("Stocker")
-
-
-if __name__ == '__main__':
-    app = QtGui.QApplication(sys.argv)
-    main = MainWindow()
-    main.show()
-
-    sys.exit(app.exec_())

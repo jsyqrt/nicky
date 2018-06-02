@@ -5,7 +5,7 @@ from pyqtgraph.Qt import QtCore, QtGui
 import pandas as pd
 import numpy as np
 
-__all__ = ['MainWidget', 'AboutDialog']
+__all__ = ['MainPlot', 'ReturnPlot', 'HeatmapPlot', 'AboutDialog', 'IndicatorPlot']
 
 
 class MyStringAxis(pg.AxisItem):
@@ -598,50 +598,3 @@ class AboutDialog(QtGui.QDialog):
     def setText(self, text):
         self.textLabel.setText(text)
 
-
-class MainWidget(QtGui.QWidget):
-
-    def __init__(self):
-        super(MainWidget, self).__init__()
-
-        self.setMouseTracking(True)
-
-        #self.candlestick_plot = CandlestickPlot()
-        self.candlestick_plot = MainPlot()#CandlestickPlot()
-        self.return_plot = ReturnPlot()
-        self.heatmap_plot = HeatmapPlot()
-
-        self.layout = QtGui.QStackedLayout()
-        self.layout.addWidget(self.candlestick_plot)
-        self.layout.addWidget(self.return_plot)
-        self.layout.addWidget(self.heatmap_plot)
-
-        self.indicator_plots = {}
-
-        self.setLayout(self.layout)
-
-    def loadData(self, data, title, data_type='ohlcv'):
-        if data_type == 'ohlcv':
-            self.candlestick_plot.loadData(data, title)
-            self.layout.setCurrentIndex(0)
-        elif data_type == 'return':
-            self.return_plot.loadData(data, title)
-            self.layout.setCurrentIndex(1)
-        elif data_type == 'cluster':
-            self.heatmap_plot.loadData(data, title)
-            self.layout.setCurrentIndex(2)
-        elif data_type.startswith('indicator'):
-            indicator_type = data_type.split(':')[1]
-            if indicator_type not in self.indicator_plots:
-                current_index = self.layout.count()
-                indicator_plot = IndicatorPlot(indicator_type)
-                indicator_plot.loadData(data, title)
-                self.layout.addWidget(indicator_plot)
-                self.layout.setCurrentIndex(current_index)
-                self.indicator_plots[indicator_type] = current_index
-            else:
-                self.layout.setCurrentIndex(self.indicator_plots[indicator_type])
-                self.layout.currentWidget().loadData(data, title)
-
-        else:
-            pass
