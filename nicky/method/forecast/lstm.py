@@ -18,8 +18,8 @@ import logging
 import warnings
 warnings.filterwarnings('ignore')
 
-from nicky.data.sae import StackedAutoencoder
-from nicky.data.sohu import sohu
+from nicky.data.stocks.sohu import sohu
+from nicky.method.encode.sae import StackedAutoencoder
 
 
 random.seed(0)
